@@ -19,8 +19,8 @@ public class PartitioningExperiment {
     }
 
     public static void main(String[] args) throws InterruptedException {
+        DockerPartitioner dockerPartitioner = new DockerPartitioner();
         ExperimentWorker.ExperimentConfig config = new ExperimentWorker.ExperimentConfig(100000, 10000);
-
         ExperimentData experimentData = runExperiment(config);
         System.out.println("Experiment finished.");
         experimentData.store();
