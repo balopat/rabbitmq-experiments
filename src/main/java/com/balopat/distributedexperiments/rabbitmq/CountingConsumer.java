@@ -1,36 +1,54 @@
 package com.balopat.distributedexperiments.rabbitmq;
 
 import com.rabbitmq.client.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 
 public class CountingConsumer extends ExperimentWorker {
 
 
+    private static final Logger LOG = LoggerFactory.getLogger(CountingConsumer.class);
     private Map<Integer, Integer> counts = new HashMap<Integer, Integer>();
     private Long deadLineToFinish = null;
+    private Connection connection;
+    private Channel channel;
 
     public CountingConsumer(ExperimentWorker.ExperimentConfig config, PartitioningExperiment.ExperimentData data) {
         super(config, data);
     }
 
     public void runUnsafe() throws Throwable {
-        Connection connection = null;
+        connection = null;
         try {
             for (int i = 0; i < config.sampleSize; i++) {
                 counts.put(i, 0);
             }
 
-            ConnectionFactory connectionFactory = new ConnectionFactory();
-            connection = connectionFactory.newConnection();
-            Channel channel = connection.createChannel();
-            channel.queueDeclare("testqueue", true, false, false, new HashMap<>());
-            channel.queueBind("testqueue", "amq.fanout", "");
-            channel.queuePurge("testqueue");
+            int retries = 5;
+            while (retries > 0) {
+                try {
+                    connect();
+                    channel.queuePurge("testqueue");
+                    retries = 0;
+                } catch (IOException e) {
+                    LOG.info("Consumer could not connect yet! " + e + " retry left: " + retries);
+                    if (retries == 0) {
+                        throw e;
+                    }
+                    Thread.sleep(1000);
+                    retries --;
+                }
+            }
+
+            LOG.info("Consumer connected successfully.");
+
             DefaultConsumer callback = new DefaultConsumer(channel) {
                 @Override
                 public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
@@ -62,6 +80,14 @@ public class CountingConsumer extends ExperimentWorker {
         } finally {
             if (connection != null) connection.close();
         }
+    }
+
+    private void connect() throws IOException, TimeoutException {
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        connection = connectionFactory.newConnection();
+        channel = connection.createChannel();
+        channel.queueDeclare("testqueue", true, false, false, new HashMap<>());
+        channel.queueBind("testqueue", "amq.fanout", "");
     }
 
     private void printStats() {
