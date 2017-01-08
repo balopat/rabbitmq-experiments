@@ -66,34 +66,36 @@ public abstract class ExperimentWorker implements Runnable {
     }
 
     protected void withRetryingConnections(Runnable action) throws IOException, TimeoutException, InterruptedException {
-        int retries = 10;
-        while (retries > 0) {
+        int retries = 0;
+        boolean success = false;
+        while (!success) {
             try {
                 if (connectionIsHealthy()) {
                     action.run();
-                    retries = 0;
+                    success = true;
                 } else {
                     cleanupConnectionIfNeeded();
                     connect();
                     LOG.info(this.name + " successfully (re)connected!");
                     action.run();
-                    retries = 0;
+                    success = true;
                 }
+            } catch (KillWorkerException e) {
+                throw e;
             } catch (Exception e) {
-                LOG.info(this.name + " could not connect yet! " + e + " retry left: " + retries);
-                if (retries == 0) {
-                    throw e;
-                }
+                success = false;
+                LOG.info(this.name + " could not connect yet! " + e + " retries: " + retries);
                 if (connection != null) {
                     try {
                         connection.close();
                     } catch (Throwable ignored) {}
                 }
                 Thread.sleep(1000);
-                retries--;
+                retries++;
             }
         }
     }
+
 
     private boolean connectionIsHealthy() {
         return connection != null && connection.isOpen() && channel != null && channel.isOpen();
@@ -106,6 +108,10 @@ public abstract class ExperimentWorker implements Runnable {
             } catch (Throwable ignored) {
             }
         }
+    }
+
+    public String getName() {
+        return name;
     }
 
 

@@ -44,10 +44,14 @@ public class CountingConsumer extends ExperimentWorker {
             if (new Report(counts).countZero == 0) {
                 state = State.FINISHED;
             }
-            if (hasDeadlineToFinish() && System.currentTimeMillis() > deadLineToFinish) {
-                throw new IllegalStateException("Consumer failed to finish on deadline!");
+            if (deadlineExpired()) {
+                throw new KillWorkerException("Consumer failed to finish on deadline!");
             }
         }
+    }
+
+    protected boolean deadlineExpired() {
+        return hasDeadlineToFinish() && System.currentTimeMillis() > deadLineToFinish;
     }
 
     protected DefaultConsumer countingConsumerCallback() {
