@@ -2,32 +2,33 @@ package com.balopat.distributedexperiments.rabbitmq;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
-import com.github.dockerjava.api.model.*;
+import com.github.dockerjava.api.model.AccessMode;
+import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.Frame;
+import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.DockerClientConfig;
 import com.github.dockerjava.core.command.LogContainerResultCallback;
-import com.google.common.collect.Maps;
-import org.apache.http.client.HttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Created by balopat on 1/6/17.
  */
 public class RabbitMQClusterManager {
+    public static int RABBIT1_PORT = 5672;
+    public static int RABBIT2_PORT = 5673;
+    public static int RABBIT3_PORT = 5674;
+
     private static final Logger LOG = LoggerFactory.getLogger(RabbitMQClusterManager.class);
     private DockerClientConfig config;
     private DockerClient docker;

@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,80 +16,80 @@ public class CountingConsumer extends ExperimentWorker {
 
 
     private static final Logger LOG = LoggerFactory.getLogger(CountingConsumer.class);
-    private Map<Integer, Integer> counts = new HashMap<Integer, Integer>();
+    private Map<Integer, Integer> counts = new HashMap<>();
     private Long deadLineToFinish = null;
-    private Connection connection;
-    private Channel channel;
 
     public CountingConsumer(ExperimentWorker.ExperimentConfig config, PartitioningExperiment.ExperimentData data) {
-        super(config, data);
+        super(config, data, "CountingConsumer");
     }
 
     public void runUnsafe() throws Throwable {
-        connection = null;
-        try {
-            for (int i = 0; i < config.sampleSize; i++) {
-                counts.put(i, 0);
-            }
+        setupCounts();
 
-            int retries = 5;
-            while (retries > 0) {
-                try {
-                    connect();
-                    channel.queuePurge("testqueue");
-                    retries = 0;
-                } catch (IOException e) {
-                    LOG.info("Consumer could not connect yet! " + e + " retry left: " + retries);
-                    if (retries == 0) {
-                        throw e;
-                    }
-                    Thread.sleep(1000);
-                    retries --;
-                }
-            }
+        setupQueue();
 
-            LOG.info("Consumer connected successfully.");
-
-            DefaultConsumer callback = new DefaultConsumer(channel) {
-                @Override
-                public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
-                    int key = Integer.parseInt(new String(body));
-                    counts.put(key, counts.get(key) + 1);
-                    channel.basicAck(envelope.getDeliveryTag(), false);
-                    if (key % 20000 == 0) {
-                        try {
-                            System.out.println("sleeping for 1000ms...");
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-            };
-            channel.basicConsume("testqueue", callback);
-            state = State.RUNNING;
-            while (state != State.FINISHED) {
-                Thread.sleep(1000);
-                printStats();
-                if (new Report(counts).countZero == 0) {
-                    state = State.FINISHED;
-                }
-                if (hasDeadlineToFinish() && System.currentTimeMillis() > deadLineToFinish) {
-                    throw new IllegalStateException("Consumer failed to finish on deadline!");
-                }
+        withRetryingConnections(() -> {
+            try {
+                channel.basicConsume("testqueue", countingConsumerCallback());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
-        } finally {
-            if (connection != null) connection.close();
+        });
+
+        state = State.RUNNING;
+
+        while (state != State.FINISHED) {
+            Thread.sleep(2000);
+            printStats();
+            if (new Report(counts).countZero == 0) {
+                state = State.FINISHED;
+            }
+            if (hasDeadlineToFinish() && System.currentTimeMillis() > deadLineToFinish) {
+                throw new IllegalStateException("Consumer failed to finish on deadline!");
+            }
         }
     }
 
-    private void connect() throws IOException, TimeoutException {
-        ConnectionFactory connectionFactory = new ConnectionFactory();
-        connection = connectionFactory.newConnection();
-        channel = connection.createChannel();
-        channel.queueDeclare("testqueue", true, false, false, new HashMap<>());
-        channel.queueBind("testqueue", "amq.fanout", "");
+    protected DefaultConsumer countingConsumerCallback() {
+        return new DefaultConsumer(channel) {
+            @Override
+            public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+                int key = Integer.parseInt(new String(body));
+                counts.put(key, counts.get(key) + 1);
+                channel.basicAck(envelope.getDeliveryTag(), false);
+                if (key % 20000 == 0 && key / 20000 > 0) {
+                    try {
+                        int sleepTime = 1000;
+                        System.out.println("sleeping for " + sleepTime + "ms...");
+                        Thread.sleep(sleepTime);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        };
     }
+
+    private void setupQueue() throws IOException, TimeoutException, InterruptedException {
+        withRetryingConnections(() -> {
+            try {
+                channel.queueDeclare("testqueue", true, false, false, new HashMap<>());
+                channel.queueBind("testqueue", "amq.fanout", "");
+                channel.queuePurge("testqueue");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+
+        LOG.info("Consumer connected successfully.");
+    }
+
+    private void setupCounts() {
+        for (int i = 0; i < config.sampleSize; i++) {
+            counts.put(i, 0);
+        }
+    }
+
 
     private void printStats() {
         System.out.println(new Report(counts).prettyPrint());
@@ -109,7 +110,7 @@ public class CountingConsumer extends ExperimentWorker {
         private final long countExactlyOne;
         private final long countDupes;
         private final int sampleSize;
-        private final Date  reportTime;
+        private final Date reportTime;
 
         public Report(Map<Integer, Integer> counts) {
             sampleSize = counts.size();
