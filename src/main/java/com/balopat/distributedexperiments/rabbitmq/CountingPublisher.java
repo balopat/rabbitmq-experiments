@@ -11,11 +11,11 @@ public class CountingPublisher extends ExperimentWorker {
 
 
     private int port;
-    private int startInterval;
-    private int endInterval;
+    private long startInterval;
+    private long endInterval;
 
-    public CountingPublisher(int port, int startInterval, int endInterval, ExperimentConfig config, PartitioningExperiment.ExperimentData data) {
-        super(config, data, "CountingPublisher [" + port + "]");
+    public CountingPublisher(int port, long startInterval, long endInterval, ExperimentConfig config) {
+        super(config, "CountingPublisher [" + port + "]");
         this.port = port;
         this.startInterval = startInterval;
         this.endInterval = endInterval;
@@ -31,8 +31,8 @@ public class CountingPublisher extends ExperimentWorker {
     @Override
     protected void runUnsafe() throws Throwable {
             state = State.RUNNING;
-            for (int i = startInterval; i < endInterval + 1; i++) {
-                final byte[] bytes = Integer.toString(i).getBytes();
+            for (long i = startInterval; i < endInterval + 1; i++) {
+                final byte[] bytes = Long.toString(i).getBytes();
                 withRetryingConnections(() -> {
                     try {
                         channel.confirmSelect();

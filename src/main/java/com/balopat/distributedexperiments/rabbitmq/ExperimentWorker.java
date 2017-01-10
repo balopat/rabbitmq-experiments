@@ -26,7 +26,7 @@ public abstract class ExperimentWorker implements Runnable {
     }
 
 
-    public ExperimentWorker(ExperimentConfig config, PartitioningExperiment.ExperimentData data, String name) {
+    public ExperimentWorker(ExperimentConfig config, String name) {
         this.config = config;
         this.name = name;
     }
@@ -116,18 +116,30 @@ public abstract class ExperimentWorker implements Runnable {
 
 
     public enum State {
-        INITIALIZING, RUNNING, FINISHED, FAILED
+        INITIALIZING, RUNNING, FINISHED, PAUSED, FAILED
     }
 
     public static class ExperimentConfig {
-        protected final int sampleSize;
-        protected final long consumerDeadlineAfterPublisherIsDone;
+        final long sampleSize;
+        final boolean cleanup;
+        final boolean partitioning;
+        final long consumerDeadlineAfterPublisherIsDone;
 
-        public ExperimentConfig(long consumerDeadlineAfterPublisherIsDone, int sampleSize) {
+        public ExperimentConfig(long consumerDeadlineAfterPublisherIsDone, long sampleSize, boolean cleanup, boolean partitioning) {
             this.consumerDeadlineAfterPublisherIsDone = consumerDeadlineAfterPublisherIsDone;
             this.sampleSize = sampleSize;
+            this.cleanup = cleanup;
+            this.partitioning = partitioning;
         }
 
-
+        @Override
+        public String toString() {
+            return "ExperimentConfig{" +
+                    "sampleSize=" + sampleSize +
+                    ", cleanup=" + cleanup +
+                    ", partitioning=" + partitioning +
+                    ", consumerDeadlineAfterPublisherIsDone=" + consumerDeadlineAfterPublisherIsDone +
+                    '}';
+        }
     }
 }

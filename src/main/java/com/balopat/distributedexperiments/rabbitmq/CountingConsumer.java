@@ -11,6 +11,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
+import static com.balopat.distributedexperiments.rabbitmq.ExperimentWorker.State.PAUSED;
+
 
 public class CountingConsumer extends ExperimentWorker {
 
@@ -18,9 +20,26 @@ public class CountingConsumer extends ExperimentWorker {
     private static final Logger LOG = LoggerFactory.getLogger(CountingConsumer.class);
     private Map<Integer, Integer> counts = new HashMap<>();
     private Long deadLineToFinish = null;
+    private String consumerTag;
+    private boolean paused = false;
 
-    public CountingConsumer(ExperimentWorker.ExperimentConfig config, PartitioningExperiment.ExperimentData data) {
-        super(config, data, "CountingConsumer");
+    public CountingConsumer(ExperimentWorker.ExperimentConfig config) {
+        super(config, "CountingConsumer");
+    }
+
+
+    public void pause() {
+        this.state = PAUSED;
+        try {
+            channel.basicCancel(consumerTag);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public void resume() {
+        try {
+            startConsumer();
+        } catch (Exception e) {}
     }
 
     public void runUnsafe() throws Throwable {
@@ -28,15 +47,7 @@ public class CountingConsumer extends ExperimentWorker {
 
         setupQueue();
 
-        withRetryingConnections(() -> {
-            try {
-                channel.basicConsume("testqueue", countingConsumerCallback());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
-
-        state = State.RUNNING;
+        startConsumer();
 
         while (state != State.FINISHED) {
             Thread.sleep(2000);
@@ -50,6 +61,18 @@ public class CountingConsumer extends ExperimentWorker {
         }
     }
 
+    protected void startConsumer() throws IOException, TimeoutException, InterruptedException {
+        withRetryingConnections(() -> {
+            try {
+                consumerTag = channel.basicConsume("testqueue", countingConsumerCallback());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+
+        state = State.RUNNING;
+    }
+
     protected boolean deadlineExpired() {
         return hasDeadlineToFinish() && System.currentTimeMillis() > deadLineToFinish;
     }
@@ -61,15 +84,6 @@ public class CountingConsumer extends ExperimentWorker {
                 int key = Integer.parseInt(new String(body));
                 counts.put(key, counts.get(key) + 1);
                 channel.basicAck(envelope.getDeliveryTag(), false);
-                if (key % 20000 == 0 && key / 20000 > 0) {
-                    try {
-                        int sleepTime = 1000;
-                        System.out.println("sleeping for " + sleepTime + "ms...");
-                        Thread.sleep(sleepTime);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
             }
         };
     }
