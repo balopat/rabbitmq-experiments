@@ -129,7 +129,7 @@ public class RabbitMQClusterManager {
     }
 
 
-    public ClusterStateValidatorBuilder assertClusteringState() {
-        return new ClusterStateValidatorBuilder(this);
+    public ClusterStateValidator assertClusteringState() {
+        return new ClusterStateValidator(this);
     }
 }

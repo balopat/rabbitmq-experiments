@@ -12,14 +12,14 @@ import static com.balopat.distributedexperiments.rabbitmq.RabbitMQClusterManager
 /**
  * Created by balopat on 1/10/17.
  */
-public class ClusterStateValidatorBuilder {
+public class ClusterStateValidator {
 
-    private static Logger LOG = LoggerFactory.getLogger(ClusterStateValidatorBuilder.class);
+    private static Logger LOG = LoggerFactory.getLogger(ClusterStateValidator.class);
 
     private RabbitMQClusterManager clusterManager;
     private List<ClusterStateFromNode> clusterStateAssertionsByNode = new ArrayList<>();
 
-    public ClusterStateValidatorBuilder(RabbitMQClusterManager clusterManager) {
+    public ClusterStateValidator(RabbitMQClusterManager clusterManager) {
         this.clusterManager = clusterManager;
     }
 
@@ -36,7 +36,8 @@ public class ClusterStateValidatorBuilder {
             String firstLineOfOutput = output.split("\n")[0];
             boolean[] actualClusterStateFromNode = parse(firstLineOfOutput);
             if (!actualClusterStateFromNode.equals(expectedClusterStateFromNode)) {
-                LOG.warn("cluster state is not matching expected state, from node " + expectedClusterStateFromNode + " it is: \n" + actualClusterStateFromNode);
+                LOG.warn("cluster state is not matching expected state, from node " + expectedClusterStateFromNode + " it is: \n"
+                        + Arrays.toString(actualClusterStateFromNode));
                 result = false;
             }
         }
@@ -55,15 +56,15 @@ public class ClusterStateValidatorBuilder {
     public class ClusterStateFromNode {
 
         private final String fromNode;
-        private final ClusterStateValidatorBuilder clusterStateValidatorBuilder;
+        private final ClusterStateValidator clusterStateValidatorBuilder;
         private boolean[] expectedClusterState = new boolean[]{true, true, true};
 
-        public ClusterStateFromNode(String fromNode, ClusterStateValidatorBuilder clusterStateValidatorBuilder) {
+        public ClusterStateFromNode(String fromNode, ClusterStateValidator clusterStateValidatorBuilder) {
             this.fromNode = fromNode;
             this.clusterStateValidatorBuilder = clusterStateValidatorBuilder;
         }
 
-        public ClusterStateValidatorBuilder clusteredNodesAre(boolean rabbit1, boolean rabbit2, boolean rabbit3) {
+        public ClusterStateValidator clusteredNodesAre(boolean rabbit1, boolean rabbit2, boolean rabbit3) {
             expectedClusterState = new boolean[]{rabbit1, rabbit2, rabbit3};
             return clusterStateValidatorBuilder;
         }
