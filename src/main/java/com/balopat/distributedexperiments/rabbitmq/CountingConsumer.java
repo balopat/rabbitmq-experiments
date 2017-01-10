@@ -110,7 +110,7 @@ public class CountingConsumer extends ExperimentWorker {
 
 
     private void printStats() {
-        System.out.println(new Report(counts).prettyPrint());
+       // System.out.println(new Report(counts).prettyPrint());
     }
 
     public boolean hasDeadlineToFinish() {

@@ -31,12 +31,12 @@ public class ClusterStateValidator {
 
     public boolean validate() {
         boolean result = true;
-        for (ClusterStateFromNode expectedClusterStateFromNode : clusterStateAssertionsByNode) {
-            String output = clusterManager.get(expectedClusterStateFromNode.fromNode).executeCommand("rst");
-            String firstLineOfOutput = output.split("\n")[0];
-            boolean[] actualClusterStateFromNode = parse(firstLineOfOutput);
-            if (!actualClusterStateFromNode.equals(expectedClusterStateFromNode)) {
-                LOG.warn("cluster state is not matching expected state, from node " + expectedClusterStateFromNode + " it is: \n"
+        for (ClusterStateFromNode fromNode : clusterStateAssertionsByNode) {
+            String output = clusterManager.get(fromNode.fromNode).executeCommand("rst");
+
+            boolean[] actualClusterStateFromNode = parse(output);
+            if (!Arrays.equals(actualClusterStateFromNode, fromNode.expectedClusterState)) {
+                LOG.warn("cluster state is not matching expected state, from node \n exp: " + fromNode + "\n act: "
                         + Arrays.toString(actualClusterStateFromNode));
                 result = false;
             }
@@ -45,12 +45,17 @@ public class ClusterStateValidator {
         return result;
     }
 
-    private boolean[] parse(String firstLineOfOutput) {
-        return new boolean[]{
-                firstLineOfOutput.contains(RABBIT1),
-                firstLineOfOutput.contains(RABBIT2),
-                firstLineOfOutput.contains(RABBIT3)
-        };
+    protected boolean[] parse(String output) {
+        if (output.split("\n").length > 3) {
+            String firstLineOfOutput = output.split("\n")[3];
+            return new boolean[]{
+                    firstLineOfOutput.contains(RABBIT1),
+                    firstLineOfOutput.contains(RABBIT2),
+                    firstLineOfOutput.contains(RABBIT3)
+            };
+        } else {
+            return new boolean[]{false, false, false};
+        }
     }
 
     public class ClusterStateFromNode {

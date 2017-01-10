@@ -111,26 +111,66 @@ public class PartitioningExperiment {
 
             LOG.info("partitioning away rabbit3 from rabbit1 and rabbit2, sleep...");
             dockerPartitioner.partitionAway(RABBIT3, RABBIT1, RABBIT2);
-            sleep(20);
 
+            clusterStateIsValid = false;
 
-            LOG.info("partitioning away rabbit1 from rabbit2 and rabbit3, sleep...");
+            while (!clusterStateIsValid) {
+                sleep(5);
+                clusterStateIsValid = clusterManager.assertClusteringState()
+                        .from(RABBIT1).clusteredNodesAre(true, true, false)
+                        .from(RABBIT2).clusteredNodesAre(true, true, false)
+                        .from(RABBIT3).clusteredNodesAre(false, false, true)
+                        .validate();
+                System.out.println("partitioning state: " + clusterStateIsValid);
+            }
 
-            dockerPartitioner.partitionAway(RABBIT3, RABBIT1, RABBIT2);
-            sleep(20);
-
-            LOG.info("partitioning away rabbit1 from rabbit2 and rabbit3, sleep...");
+            LOG.info("partitioning away rabbit2 from rabbit1 and rabbit3, sleep...");
             dockerPartitioner.partitionAway(RABBIT2, RABBIT1, RABBIT3);
-            sleep(20);
+
+            clusterStateIsValid = false;
+
+            while (!clusterStateIsValid) {
+                sleep(5);
+                clusterStateIsValid = clusterManager.assertClusteringState()
+                        .from(RABBIT1).clusteredNodesAre(true, false, false)
+                        .from(RABBIT2).clusteredNodesAre(false, true, false)
+                        .from(RABBIT3).clusteredNodesAre(false, false, true)
+                        .validate();
+                System.out.println("partitioning state: " + clusterStateIsValid);
+            }
 
 
             LOG.info("healing rabbit3");
             dockerPartitioner.healNetwork(RABBIT3);
 
-            sleep(10);
+            clusterStateIsValid = false;
+
+            while (!clusterStateIsValid) {
+                sleep(5);
+                clusterStateIsValid = clusterManager.assertClusteringState()
+                        .from(RABBIT1).clusteredNodesAre(true, false, true)
+                        .from(RABBIT2).clusteredNodesAre(false, true, false)
+                        .from(RABBIT3).clusteredNodesAre(true, false, true)
+                        .validate();
+                System.out.println("partitioning state: " + clusterStateIsValid);
+            }
 
             LOG.info("healing rabbit2");
             dockerPartitioner.healNetwork(RABBIT2);
+
+
+            clusterStateIsValid = false;
+
+            while (!clusterStateIsValid) {
+                sleep(5);
+                clusterStateIsValid = clusterManager.assertClusteringState()
+                        .from(RABBIT1).clusteredNodesAre(true, true, true)
+                        .from(RABBIT2).clusteredNodesAre(true, true, true)
+                        .from(RABBIT3).clusteredNodesAre(true, true, true)
+                        .validate();
+                System.out.println("partitioning state: " + clusterStateIsValid);
+            }
+
         });
     }
 
