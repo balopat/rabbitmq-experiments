@@ -37,15 +37,14 @@ public class CountingPublisher extends ExperimentWorker {
                     try {
                         channel.confirmSelect();
                         channel.basicPublish("amq.fanout", "", true, false, new AMQP.BasicProperties.Builder().build(), bytes);
-                        channel.waitForConfirmsOrDie(1000);
+                        channel.waitForConfirmsOrDie(5000);
                     } catch (IOException | InterruptedException | TimeoutException e) {
                         throw new IllegalStateException(e);
                     }
                 });
             }
-            state = State.FINISHED;
-
-
+        LOG.info(this.getName() + " published all messages from " + startInterval + " to " + endInterval);
+        state = State.FINISHED;
     }
 
 

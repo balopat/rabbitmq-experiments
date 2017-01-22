@@ -56,7 +56,7 @@ public class CountingConsumer extends ExperimentWorker {
                 state = State.FINISHED;
             }
             if (deadlineExpired()) {
-                throw new KillWorkerException("Consumer failed to finish on deadline!");
+                throw new KillWorkerException("Consumer failed to finish on deadline! Final state: \n" + new Report(counts).prettyPrint());
             }
         }
     }

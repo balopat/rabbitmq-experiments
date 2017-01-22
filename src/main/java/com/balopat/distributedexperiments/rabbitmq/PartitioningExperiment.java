@@ -1,7 +1,6 @@
 package com.balopat.distributedexperiments.rabbitmq;
 
 
-import com.google.common.collect.Sets;
 import org.apache.commons.cli.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +26,7 @@ public class PartitioningExperiment {
         LOG.info(config.toString());
         RabbitMQClusterManager rabbitMQClusterManager = new RabbitMQClusterManager();
         try {
+            rabbitMQClusterManager.cleanup();
             rabbitMQClusterManager.bringUpCluster();
             DockerPartitioner dockerPartitioner = new DockerPartitioner(rabbitMQClusterManager);
             runExperiment(config, dockerPartitioner, rabbitMQClusterManager);
@@ -39,13 +39,13 @@ public class PartitioningExperiment {
     }
 
     protected static ExperimentWorker.ExperimentConfig getExperimentConfig(String[] args) throws ParseException {
-        LOG.info("running with args: " + Arrays.toString(args));
+        LOG.info("running experiment with args: " + Arrays.toString(args));
 
         Options options = new Options();
         options.addOption(OPT_SAMPLE_SIZE, true, "sets the number of messages sent (100,000 default)");
         options.addOption(OPT_NO_CLEANUP, false, "for debugging purposes doesn't cleanup the rabbitmq docker containers");
         options.addOption(OPT_NO_PARTITIONING, false, "good for setting baseline: runs the experiment with no partitioning - no messages should be lost ever in this scenario");
-        options.addOption(OPT_CONSUMER_DEADLINE, true, "consumer deadline to finish after the producers finished");
+        options.addOption(OPT_CONSUMER_DEADLINE, true, "consumer deadline to finish after the producers finished (120 000 default)");
 
 
         CommandLineParser parser = new DefaultParser();
@@ -70,19 +70,22 @@ public class PartitioningExperiment {
     }
 
     private static void runExperiment(ExperimentWorker.ExperimentConfig config, DockerPartitioner dockerPartitioner, RabbitMQClusterManager clusterManager) throws InterruptedException {
+        waitForHealthyCluster(clusterManager);
         CountingConsumer countingConsumer = setupAndStartConsumer(config);
         waitForHealthyWorker(10, countingConsumer);
-        CountingPublisher countingPublisher1 = setupAndStartPublisher(0, config.sampleSize / 2, config);
-        CountingPublisher countingPublisher2 = setupAndStartPublisher(config.sampleSize / 2 + 1, config.sampleSize - 1, config);
+        CountingPublisher countingPublisher1 = setupAndStartPublisher(RabbitMQClusterManager.RABBIT2_PORT, 0, config.sampleSize / 2, config);
+        CountingPublisher countingPublisher2 = setupAndStartPublisher(RabbitMQClusterManager.RABBIT3_PORT,config.sampleSize / 2 + 1, config.sampleSize - 1, config);
         waitForHealthyWorker(10, countingPublisher1, countingPublisher2);
 
 
         getConsumerCoordinator(countingConsumer).start();
-        if (config.partitioning) getNetworkPartitionCoordinator(dockerPartitioner, clusterManager).start();
+        Thread networkPartitionCoordinator = null;
+        if (config.partitioning) {
+            networkPartitionCoordinator = getNetworkPartitionCoordinator(dockerPartitioner, clusterManager, countingConsumer, countingPublisher1, countingPublisher2);
+            networkPartitionCoordinator.start();
+        }
 
-        while (countingConsumer.getState() == RUNNING
-                || countingPublisher1.getState() == RUNNING
-                || countingPublisher2.getState() == RUNNING) {
+        while (isAnyClientRunning(countingConsumer, countingPublisher1, countingPublisher2) || networkPartitionCoordinator.isAlive()) {
             Thread.sleep(1000);
             if (countingPublisher1.getState() == FINISHED
                     && countingPublisher2.getState() == FINISHED
@@ -90,22 +93,34 @@ public class PartitioningExperiment {
                 countingConsumer.setDeadLineToFinish(config.consumerDeadlineAfterPublisherIsDone);
             }
         }
+
     }
 
+    private static boolean isAnyClientRunning(CountingConsumer countingConsumer, CountingPublisher countingPublisher1, CountingPublisher countingPublisher2) {
+        return countingConsumer.getState() == RUNNING
+                || countingPublisher1.getState() == RUNNING
+                || countingPublisher2.getState() == RUNNING;
+    }
 
-    private static Thread getNetworkPartitionCoordinator(DockerPartitioner dockerPartitioner, RabbitMQClusterManager clusterManager) {
-        return new Thread(() -> {
+    private static void waitForHealthyCluster(RabbitMQClusterManager clusterManager) {
+        LOG.info("Waiting for healthy cluster...");
+        boolean clusterStateIsValid = false;
 
-            boolean clusterStateIsValid = clusterManager.assertClusteringState()
+        while (!clusterStateIsValid) {
+            sleep(2);
+            clusterStateIsValid = clusterManager.assertClusteringState()
                     .from(RABBIT1).clusteredNodesAre(true, true, true)
                     .from(RABBIT2).clusteredNodesAre(true, true, true)
                     .from(RABBIT3).clusteredNodesAre(true, true, true)
                     .validate();
+        }
+    }
 
-            if (!clusterStateIsValid) {
-                throw new RuntimeException("Cluster is not in right state!");
-            }
 
+    private static Thread getNetworkPartitionCoordinator(DockerPartitioner dockerPartitioner, RabbitMQClusterManager clusterManager, CountingConsumer countingConsumer, CountingPublisher countingPublisher1, CountingPublisher countingPublisher2) {
+        return new Thread(() -> {
+
+            boolean clusterStateIsValid = false;
 
             sleep(10);
 
@@ -114,8 +129,8 @@ public class PartitioningExperiment {
 
             clusterStateIsValid = false;
 
-            while (!clusterStateIsValid) {
-                sleep(5);
+            while (!clusterStateIsValid && isAnyClientRunning(countingConsumer,countingPublisher1,countingPublisher2)) {
+                sleep(2);
                 clusterStateIsValid = clusterManager.assertClusteringState()
                         .from(RABBIT1).clusteredNodesAre(true, true, false)
                         .from(RABBIT2).clusteredNodesAre(true, true, false)
@@ -129,8 +144,8 @@ public class PartitioningExperiment {
 
             clusterStateIsValid = false;
 
-            while (!clusterStateIsValid) {
-                sleep(5);
+            while (!clusterStateIsValid && isAnyClientRunning(countingConsumer,countingPublisher1,countingPublisher2)) {
+                sleep(2);
                 clusterStateIsValid = clusterManager.assertClusteringState()
                         .from(RABBIT1).clusteredNodesAre(true, false, false)
                         .from(RABBIT2).clusteredNodesAre(false, true, false)
@@ -145,8 +160,8 @@ public class PartitioningExperiment {
 
             clusterStateIsValid = false;
 
-            while (!clusterStateIsValid) {
-                sleep(5);
+            while (!clusterStateIsValid && isAnyClientRunning(countingConsumer,countingPublisher1,countingPublisher2)) {
+                sleep(2);
                 clusterStateIsValid = clusterManager.assertClusteringState()
                         .from(RABBIT1).clusteredNodesAre(true, false, true)
                         .from(RABBIT2).clusteredNodesAre(false, true, false)
@@ -160,24 +175,29 @@ public class PartitioningExperiment {
 
 
             clusterStateIsValid = false;
+            int retries = 3;
 
-            while (!clusterStateIsValid) {
-                sleep(5);
+            while (!clusterStateIsValid && isAnyClientRunning(countingConsumer,countingPublisher1,countingPublisher2)) {
+                sleep(2);
                 clusterStateIsValid = clusterManager.assertClusteringState()
                         .from(RABBIT1).clusteredNodesAre(true, true, true)
                         .from(RABBIT2).clusteredNodesAre(true, true, true)
                         .from(RABBIT3).clusteredNodesAre(true, true, true)
                         .validate();
                 System.out.println("partitioning state: " + clusterStateIsValid);
+                retries--;
             }
 
+//            clusterManager.restartApp(RABBIT1);
+//            clusterManager.restartApp(RABBIT2);
+//            clusterManager.restartApp(RABBIT3);
         });
     }
 
     private static Thread getConsumerCoordinator(CountingConsumer countingConsumer) {
         return new Thread(() -> {
 
-            while (countingConsumer.state != FAILED && countingConsumer.state != FINISHED) {
+            while (countingConsumer.state != FAILED && countingConsumer.state != FINISHED && !countingConsumer.hasDeadlineToFinish()) {
                 LOG.info("waiting 5 sec...");
                 sleep(20);
                 LOG.info("flipping consumer...");
@@ -193,6 +213,7 @@ public class PartitioningExperiment {
         try {
             Thread.sleep(seconds * 1000);
         } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -203,8 +224,8 @@ public class PartitioningExperiment {
         return consumer;
     }
 
-    private static CountingPublisher setupAndStartPublisher(long startInterval, long endInterval, ExperimentWorker.ExperimentConfig config) throws InterruptedException {
-        CountingPublisher publisher = new CountingPublisher(RabbitMQClusterManager.RABBIT2_PORT, startInterval, endInterval, config);
+    private static CountingPublisher setupAndStartPublisher(int port, long startInterval, long endInterval, ExperimentWorker.ExperimentConfig config) throws InterruptedException {
+        CountingPublisher publisher = new CountingPublisher(port, startInterval, endInterval, config);
         Thread publisherThread = new Thread(publisher);
         publisherThread.start();
         return publisher;

@@ -12,7 +12,7 @@ import java.util.concurrent.TimeoutException;
  */
 public abstract class ExperimentWorker implements Runnable {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ExperimentWorker.class);
+    protected static final Logger LOG = LoggerFactory.getLogger(ExperimentWorker.class);
     protected final ExperimentConfig config;
     protected State state = State.INITIALIZING;
     private Throwable error = null;

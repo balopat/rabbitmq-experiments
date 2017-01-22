@@ -64,8 +64,7 @@ public class RabbitMQClusterManager {
         storeContainerInfo(RABBIT2);
         storeContainerInfo(RABBIT3);
 
-        get(RABBIT1).executeCommand("/opt/rabbit/rabbitmqadmin", "declare", "policy", "name=ha-all", "pattern=testqueue", "definition='{\"ha-mode\n" +
-                "\":\"all\"}'");
+        get(RABBIT1).executeCommand("/opt/rabbit/rabbitmqadmin", "declare", "policy", "name=ha-all", "pattern=testqueue", "definition={\"ha-mode\":\"all\"}");
 
         LOG.info(rabbitContainers.toString());
 
@@ -131,5 +130,10 @@ public class RabbitMQClusterManager {
 
     public ClusterStateValidator assertClusteringState() {
         return new ClusterStateValidator(this);
+    }
+
+    public void restartApp(String nodeName) {
+       get(nodeName).executeCommand("rabbitmqctl","stop_app");
+       get(nodeName).executeCommand("rabbitmqctl","start_app");
     }
 }
