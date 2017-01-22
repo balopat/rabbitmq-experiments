@@ -25,6 +25,7 @@ public class ClusterStateValidatorIntegrationTest {
     @Test
     public void checkAssumptionsAboutRabbitMQClusterStatusOutput() throws Exception {
         RabbitMQClusterManager clusterManager = new RabbitMQClusterManager();
+        clusterManager.cleanup();
         clusterManager.bringUpCluster();
         boolean clusterStateIsValid = clusterManager.assertClusteringState()
                 .from(RABBIT1).clusteredNodesAre(true, true, true)
