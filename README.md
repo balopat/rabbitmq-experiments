@@ -12,8 +12,7 @@ To run:
 To build: 
 
 ````
- mvn assembly:assembly
- docker build -t balopat/rabbitmq-partitioning-experiment .
+ mvn assembly:assembly; docker build -t balopat/rabbitmq-partitioning-experiment .
 ````
 
 Depends on: https://github.com/balopat/testing-rabbitmq-clustering-with-docker (forked from GetLevvel/testing-rabbitmq-clustering-with-docker)

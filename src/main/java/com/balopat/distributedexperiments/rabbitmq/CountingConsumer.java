@@ -144,13 +144,13 @@ public class CountingConsumer extends ExperimentWorker {
             printOut.append("\n");
             printOut.append("time: " + reportTime);
             printOut.append("\n");
-            printOut.append("not arrived (0):\t" + countZero + "\t" + (countZero / sampleSize * 100) + "%");
+            printOut.append("not arrived (0):\t" + countZero + "\t" + (double) countZero / (double) sampleSize * 100.0 + "%");
             printOut.append("\n");
-            printOut.append("exactly one (=1) :\t" + countExactlyOne + "\t" + (countExactlyOne / sampleSize * 100) + "%");
+            printOut.append("exactly one (=1) :\t" + countExactlyOne + "\t" + ((double) countExactlyOne / (double) sampleSize * 100.0) + "%");
             printOut.append("\n");
-            printOut.append("duplicated (>1):\t" + countDupes + "\t" + (countDupes / sampleSize * 100) + "%");
+            printOut.append("duplicated (>1):\t" + countDupes + "\t" + ((double) countDupes / (double) sampleSize * 100.0) + "%");
             printOut.append("\n");
-            printOut.append("has arrived:\t" + countNonZero + "\t" + (countNonZero / sampleSize * 100) + "%");
+            printOut.append("has arrived:\t" + countNonZero + "\t" + ((double) countNonZero / (double) sampleSize * 100.0) + "%");
             printOut.append("\n");
             printOut.append("--------------------------------");
             printOut.append("\n");
