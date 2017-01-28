@@ -4,10 +4,10 @@
 To run: 
 
 ````
- docker pull balopat/rabbitmq-cluster-manager
+ docker pull balopat/rabbitmq-cluster-manager:latest
+ docker pull balopat/rabbitmq-partitioning-experiment
  docker run --net=host -v /var/run/docker.sock:/var/run/docker.sock balopat/rabbitmq-partitioning-experiment 
-````
-
+ ````
 
 To build: 
 
