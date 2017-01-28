@@ -15,7 +15,7 @@ public class ClusterStateValidatorIntegrationTest {
 
 
     @Test
-    public void testSomething() {
+    public void testParsingOfClusterStateResultString() {
         assertThat((new ClusterStateValidator(null)).parse("\nCluster status of node rabbit@rabbit2 ...\n[{nodes,[{disc,[rabbit@rabbit1,rabbit@rabbit2,rabbit@rabbit3]}]},\n" +
                 " {running_nodes,[rabbit@rabbit3,rabbit@rabbit1]},\n" +
                 " {cluster_name,<<\"rabbit@rabbit1\">>},\n" +
@@ -27,14 +27,12 @@ public class ClusterStateValidatorIntegrationTest {
         RabbitMQClusterManager clusterManager = new RabbitMQClusterManager();
         clusterManager.cleanup();
         clusterManager.bringUpCluster();
+        clusterManager.waitForHealthyCluster();
         boolean clusterStateIsValid = clusterManager.assertClusteringState()
                 .from(RABBIT1).clusteredNodesAre(true, true, true)
                 .from(RABBIT2).clusteredNodesAre(true, true, true)
                 .from(RABBIT3).clusteredNodesAre(true, true, true)
                 .validate();
-
-        if (!clusterStateIsValid) {
-            throw new RuntimeException("Cluster is not in right state!");
-        }
+        assertTrue(clusterStateIsValid);
     }
 }

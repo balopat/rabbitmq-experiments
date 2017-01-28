@@ -11,6 +11,7 @@ import static com.balopat.distributedexperiments.rabbitmq.ExperimentWorker.State
 import static com.balopat.distributedexperiments.rabbitmq.RabbitMQClusterManager.RABBIT1;
 import static com.balopat.distributedexperiments.rabbitmq.RabbitMQClusterManager.RABBIT2;
 import static com.balopat.distributedexperiments.rabbitmq.RabbitMQClusterManager.RABBIT3;
+import static com.balopat.distributedexperiments.rabbitmq.Utils.sleep;
 import static java.util.Arrays.asList;
 
 public class PartitioningExperiment {
@@ -70,7 +71,7 @@ public class PartitioningExperiment {
     }
 
     private static void runExperiment(ExperimentWorker.ExperimentConfig config, DockerPartitioner dockerPartitioner, RabbitMQClusterManager clusterManager) throws InterruptedException {
-        waitForHealthyCluster(clusterManager);
+        clusterManager.waitForHealthyCluster();
         CountingConsumer countingConsumer = setupAndStartConsumer(config);
         waitForHealthyWorker(10, countingConsumer);
         CountingPublisher countingPublisher1 = setupAndStartPublisher(RabbitMQClusterManager.RABBIT2_PORT, 0, config.sampleSize / 2, config);
@@ -102,19 +103,7 @@ public class PartitioningExperiment {
                 || countingPublisher2.getState() == RUNNING;
     }
 
-    private static void waitForHealthyCluster(RabbitMQClusterManager clusterManager) {
-        LOG.info("Waiting for healthy cluster...");
-        boolean clusterStateIsValid = false;
 
-        while (!clusterStateIsValid) {
-            sleep(2);
-            clusterStateIsValid = clusterManager.assertClusteringState()
-                    .from(RABBIT1).clusteredNodesAre(true, true, true)
-                    .from(RABBIT2).clusteredNodesAre(true, true, true)
-                    .from(RABBIT3).clusteredNodesAre(true, true, true)
-                    .validate();
-        }
-    }
 
 
     private static Thread getNetworkPartitionCoordinator(DockerPartitioner dockerPartitioner, RabbitMQClusterManager clusterManager, CountingConsumer countingConsumer, CountingPublisher countingPublisher1, CountingPublisher countingPublisher2) {
@@ -209,13 +198,6 @@ public class PartitioningExperiment {
         });
     }
 
-    private static void sleep(int seconds) {
-        try {
-            Thread.sleep(seconds * 1000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     private static CountingConsumer setupAndStartConsumer(ExperimentWorker.ExperimentConfig config) throws InterruptedException {
         CountingConsumer consumer = new CountingConsumer(config);

@@ -18,6 +18,8 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.balopat.distributedexperiments.rabbitmq.Utils.sleep;
+
 /**
  * Created by balopat on 1/6/17.
  */
@@ -135,5 +137,21 @@ public class RabbitMQClusterManager {
     public void restartApp(String nodeName) {
        get(nodeName).executeCommand("rabbitmqctl","stop_app");
        get(nodeName).executeCommand("rabbitmqctl","start_app");
+    }
+
+
+    public  void waitForHealthyCluster() {
+        LOG.info("Waiting for healthy cluster...");
+        boolean clusterStateIsValid = false;
+
+        while (!clusterStateIsValid) {
+            sleep(2);
+            clusterStateIsValid = assertClusteringState()
+                    .from(RABBIT1).clusteredNodesAre(true, true, true)
+                    .from(RABBIT2).clusteredNodesAre(true, true, true)
+                    .from(RABBIT3).clusteredNodesAre(true, true, true)
+                    .validate();
+        }
+        LOG.info("Cluster is healthy, all nodes see each other as part of the cluster.");
     }
 }
